@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Johnson Reduction Theory — Quantum Live Detector (Depth + Math)</title>
+
+  <!-- Tesseract.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#06070a; --card:#0f1113; --accent:#8b5cf6;
+      --muted:#98a0a6; --good:#10b981; --danger:#ef4444;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#050506);font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:#e6eef6}
+    .wrap{max-width:980px;margin:18px auto;padding:18px}
+    .card{background:var(--card);padding:18px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+    h1{margin:0 0 6px;font-size:20px}
+    p.lead{margin:6px 0 14px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:14px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+    input[type=text],select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.04);background:#0a0b0c;color:inherit}
+    button{background:var(--accent);color:white;padding:10px 14px;border-radius:8px;border:0;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,.06)}
+    .controls{display:flex;gap:10px;align-items:center}
+    .result{margin-top:12px;padding:14px;border-radius:10px;background:linear-gradient(180deg,#0b0b0d,#080809);border:1px solid rgba(255,255,255,.03);min-height:160px;white-space:pre-wrap}
+    .meta{font-size:13px;color:var(--muted);margin-top:8px}
+    .history{margin-top:12px;max-height:520px;overflow:auto;padding:8px;border-radius:8px;background:#070708;border:1px solid rgba(255,255,255,.02)}
+    .item{padding:10px;border-bottom:1px dashed rgba(255,255,255,.02)}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.04);font-size:12px;margin-left:6px}
+    .small{font-size:12px;color:var(--muted)}
+    code{background:rgba(255,255,255,0.02);padding:2px 6px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Johnson Reduction Theory — Quantum Live Detector</h1>
+      <p class="lead">Snapshot-only OCR with a Quantum Enhancer. Each detected number returns: reduction chain, final signature, a depth score (0–100), a metaphysical interpretation, and a mathematical/physical expression.</p>
+
+      <div class="grid">
+        <div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="flex:1">
+              <label>Enter number or paste text (optional)</label>
+              <input id="numInput" type="text" placeholder="e.g. 119 or paste feed" />
+            </div>
+
+            <div style="width:220px">
+              <label>Mode</label>
+              <select id="modeSelect">
+                <option value="johnson">Johnson Mode</option>
+                <option value="numerology">Numerology Mode</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+            <button id="analyzeBtn">Analyze Text</button>
+            <button id="snapBtn">📸 OCR Snapshot</button>
+            <button id="ocrOnceBtn" class="ghost">OCR Snapshot (alt)</button>
+            <div style="margin-left:auto" class="small">Tip: Align numbers clearly.</div>
+          </div>
+
+          <div style="margin-top:12px">
+            <video id="cameraView" autoplay playsinline style="width:100%;max-height:320px;background:#07070a;border-radius:8px;border:1px solid #222"></video>
+            <canvas id="snapshotCanvas" style="display:none"></canvas>
+            <canvas id="enhancedCanvas" style="display:none"></canvas>
+          </div>
+
+          <div id="result" class="result">Results will appear here.</div>
+          <div class="meta">Mode: <span id="modeLabel">Johnson</span> · Quantum Enhancer: <span id="enhState">on</span></div>
+        </div>
+
+        <div>
+          <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,.02);min-height:420px">
+            <h3 style="margin:0 0 8px">Detection History</h3>
+            <div class="history" id="history"></div>
+
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <button id="clearHistory" class="ghost">Clear History</button>
+              <button id="exportJson" class="ghost">Export JSON</button>
+              <button id="sample" class="ghost">Insert Sample Feed</button>
+            </div>
+
+            <div style="margin-top:8px" class="small">Exported JSON contains timestamps + full explanations.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;color:var(--muted);font-size:13px">Run local server: <code>python3 -m http.server 8080</code></div>
+    </div>
+  </div>
+
+<script>
+/* ===============================
+   CAMERA
+   =============================== */
+const cameraView = document.getElementById('cameraView');
+const snapshotCanvas = document.getElementById('snapshotCanvas');
+const enhancedCanvas = document.getElementById('enhancedCanvas');
+const snapBtn = document.getElementById('snapBtn');
+const ocrOnceBtn = document.getElementById('ocrOnceBtn');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const numInput = document.getElementById('numInput');
+const resultEl = document.getElementById('result');
+const historyEl = document.getElementById('history');
+const modeSelect = document.getElementById('modeSelect');
+const modeLabel = document.getElementById('modeLabel');
+const clearHistory = document.getElementById('clearHistory');
+const exportJson = document.getElementById('exportJson');
+const sample = document.getElementById('sample');
+const enhState = document.getElementById('enhState');
+
+modeLabel.textContent = modeSelect.value === 'johnson' ? 'Johnson' : 'Numerology';
+modeSelect.addEventListener('change',()=>{ modeLabel.textContent = modeSelect.value === 'johnson' ? 'Johnson' : 'Numerology'; });
+
+async function startCamera(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+    cameraView.srcObject = stream;
+    cameraView.play();
+  }catch(e){ console.warn('Camera failed',e); }
+}
+startCamera();
+
+/* ===============================
+   QUANTUM OCR ENHANCER
+   =============================== */
+function applyQuantumEnhancer(ctx,w,h){
+  let img = ctx.getImageData(0,0,w,h);
+  let d = img.data;
+
+  let gray = new Uint8ClampedArray(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++){
+    gray[j]=(d[i]+d[i+1]+d[i+2])/3;
+  }
+
+  let min=255,max=0;
+  for(let g of gray){ if(g<min)min=g; if(g>max)max=g; }
+  let range=Math.max(1,max-min);
+
+  for(let i=0,j=0;i<d.length;i+=4,j++){
+    let v=((gray[j]-min)/range)*255;
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+
+  function getGray(x,y){
+    if(x<0)x=0;if(y<0)y=0;if(x>=w)x=w-1;if(y>=h)y=h-1;
+    return d[(y*w+x)*4];
+  }
+  const copy=new Uint8ClampedArray(d);
+  const amount=0.9;
+
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let center=getGray(x,y);
+      let sum=0;
+      for(let ky=-1;ky<=1;ky++){
+        for(let kx=-1;kx<=1;kx++){
+          sum+=getGray(x+kx,y+ky);
+        }
+      }
+      let blur=sum/9;
+      let sharp=center+(center-blur)*amount;
+      let idx=(y*w+x)*4;
+      copy[idx]=copy[idx+1]=copy[idx+2]=Math.max(0,Math.min(255,sharp));
+    }
+  }
+
+  for(let i=0;i<d.length;i++) d[i]=copy[i];
+
+  let mean=0;
+  for(let i=0;i<d.length;i+=4) mean+=d[i];
+  mean/=d.length/4;
+  let threshold=Math.max(100,Math.min(200,mean-10));
+
+  for(let i=0;i<d.length;i+=4){
+    let v=d[i]>threshold?255:0;
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+
+  ctx.putImageData(img,0,0);
+}
+
+/* ===============================
+   REDUCTION ENGINES
+   =============================== */
+function digitsArray(n){ return String(Math.abs(n)).split('').map(Number); }
+function reduceOnce(n){ return digitsArray(n).reduce((a,b)=>a+b,0); }
+
+function reduceChainDeterministic(n){
+  let steps=[];
+  let current=Number(n);
+  while(Math.abs(current)>=10){
+    let s=reduceOnce(current);
+    steps.push(`${current} → ${s}`);
+    current=s;
+  }
+  return { result:current, steps };
+}
+
+function numerologyChainDeterministic(n){
+  let steps=[];
+  let current=Number(n);
+  while(Math.abs(current)>9){
+    let s=reduceOnce(current);
+    steps.push(`${current} → ${s}`);
+    current=s;
+    if(current===11||current===22) break;
+  }
+  return { result:current, steps };
+}
+
+/* ===============================
+   DEPTH SCORE
+   =============================== */
+function isPalindrome(s){ return String(s)===String(s).split('').reverse().join(''); }
+function hasRepeatedDigits(s){
+  let m={}; for(let ch of String(s)){ m[ch]=(m[ch]||0)+1; if(m[ch]>1)return true; }
+  return false;
+}
+
+function computeDepthScore(orig,finalSig,steps){
+  const s=String(orig);
+  let score=12;
+  if(s.includes("11")) score+=12;
+  if(isPalindrome(s)) score+=9;
+  if(hasRepeatedDigits(s)) score+=6;
+  score-=Math.max(0,(s.length-2)*1.5);
+  score-=steps.length*1.2;
+  if([11,22,33].includes(finalSig)) score+=8;
+  score=Math.round(Math.max(0,Math.min(100,(score/40)*100)));
+  return score;
+}
+
+/* ===============================
+   META INTERPRETATION + MATH
+   =============================== */
+function metaphysicalByScore(score){
+  if(score<=4) return `ABSOLUTE NULL (score ${score}) — A sleeping field.`;
+  if(score<=9) return `PRE-SIGNAL STATIC (score ${score}) — A forming whisper.`;
+  if(score<=16) return `PROTO-PATTERN EMERGENCE (score ${score}) — Subtle structure emerging.`;
+  if(score<=22) return `THRESHOLD & DIRECTION (score ${score}) — The signal leans toward meaning.`;
+  if(score<=33) return `FRACTAL SEED (score ${score}) — Repeating motifs across contexts.`;
+  if(score<=39) return `SUBTLE MANIFESTATION (score ${score}) — Intention begins shaping outcomes.`;
+  if(score<=50) return `HARMONIC ALIGNMENT (score ${score}) — Patterns synchronize.`;
+  if(score<=60) return `SYNCHRONISTIC LIFT (score ${score}) — Confirmations cluster.`;
+  if(score<=75) return `HIGH CONVERGENCE (score ${score}) — Systems align toward a theme.`;
+  if(score<=90) return `META-COHERENT REALITY (score ${score}) — Strong resonance.`;
+  return `LOCKPOINT / FULL MANIFEST (score ${score}) — Convergence at maximum coherence.`;
+}
+
+function physicalMathByScore(score){
+  if(score<=4) return {formula:"S = 0", explain:"Signal equals noise"};
+  if(score<=9) return {formula:"ΔS/Δt ≈ 0", explain:"Flat derivative"};
+  if(score<=16) return {formula:"Var(S) > ε", explain:"Variance rises"};
+  if(score<=22) return {formula:"S ≥ S₀", explain:"Threshold crossed"};
+  if(score<=33) return {formula:"Corr(S₁,S₂) > ρ", explain:"Correlation present"};
+  if(score<=39) return {formula:"∇S ≠ 0", explain:"Gradient emerging"};
+  if(score<=50) return {formula:"S ≈ sin(ωt+φ)", explain:"Harmonic pattern"};
+  if(score<=60) return {formula:"P(A|B) >> P(A)", explain:"Conditional uplift"};
+  if(score<=75) return {formula:"∑ Sᵢ → max", explain:"Convergence"};
+  if(score<=90) return {formula:"argmin(error)", explain:"Low divergence"};
+  return {formula:"S → S*", explain:"Attractor lock"};
+}
+
+function signatureDescription(final){
+  const map={
+    1:"Singularity — origin impulse.",
+    2:"Dual currents — polarity.",
+    3:"Triadic manifestation.",
+    4:"Foundation lattice.",
+    5:"Flux and change.",
+    6:"Harmonic caretaking.",
+    7:"Insight vector.",
+    8:"Looped power.",
+    9:"Completion and release.",
+    11:"Ashtei-Asar — threshold master.",
+    22:"Architect frequency.",
+    33:"Master triad."
+  };
+  return map[final]||"Atypical signature.";
+}
+
+/* ===============================
+   MAIN ANALYSIS
+   =============================== */
+function addHistoryEntry(obj){
+  const div=document.createElement("div");
+  div.className="item";
+  div.innerHTML=`
+    <div><strong>${obj.original}</strong> <span class="badge">${obj.finalSig}</span></div>
+    <div class="small">${obj.metaphysical}</div>
+    <div class="small">${obj.math.formula}</div>
+  `;
+  historyEl.prepend(div);
+}
+
+async function analyzeNumber(token,source="manual"){
+  const mode=modeSelect.value;
+  const chain=(mode==="johnson"?
+      reduceChainDeterministic(token):
+      numerologyChainDeterministic(token)
+  );
+
+  const finalSig=chain.result;
+  const depth=computeDepthScore(token,finalSig,chain.steps);
+  const metaphysical=metaphysicalByScore(depth);
+  const math=physicalMathByScore(depth);
+
+  resultEl.textContent =
+`Original: ${token}
+Reduction chain:
+${chain.steps.join("\n")||"(none)"}
+Final signature: ${finalSig} — ${signatureDescription(finalSig)}
+Depth score: ${depth}
+Metaphysical: ${metaphysical}
+Math: ${math.formula} (${math.explain})
+Source: ${source}
+`;
+
+  addHistoryEntry({original:token,finalSig,metaphysical,math});
+}
+
+function analyzeTextInput(){
+  const text=numInput.value.trim();
+  if(!text){ resultEl.textContent="No input."; return; }
+  const nums=text.match(/-?\d+/g)||[];
+  if(nums.length===0){ resultEl.textContent="No numbers detected."; return; }
+  nums.forEach(n=>analyzeNumber(n,"text"));
+}
+analyzeBtn.addEventListener("click",analyzeTextInput);
+
+/* ===============================
+   OCR SNAPSHOT
+   =============================== */
+snapBtn.addEventListener("click",()=>doSnapshotOCR(false));
+ocrOnceBtn.addEventListener("click",()=>doSnapshotOCR(true));
+
+async function doSnapshotOCR(skipEnhancer=false){
+  const w=cameraView.videoWidth;
+  const h=cameraView.videoHeight;
+  snapshotCanvas.width=w; snapshotCanvas.height=h;
+  const ctx=snapshotCanvas.getContext("2d");
+  ctx.drawImage(cameraView,0,0,w,h);
+
+  if(!skipEnhancer){
+    applyQuantumEnhancer(ctx,w,h);
+  }
+
+  const { data:{ text } } = await Tesseract.recognize(snapshotCanvas,'eng');
+  const nums=text.match(/-?\d+/g)||[];
+
+  if(nums.length===0){
+    resultEl.textContent="OCR found no numbers.";
+    return;
+  }
+
+  nums.forEach(n=>analyzeNumber(n,"ocr"));
+}
+
+/* ===============================
+   HISTORY & EXPORT
+   =============================== */
+clearHistory.addEventListener("click",()=>{ historyEl.innerHTML=""; });
+
+exportJson.addEventListener("click",()=>{
+  let arr=[];
+  [...historyEl.children].forEach(item=>{
+    arr.push({ text:item.innerText.trim() });
+  });
+  const blob=new Blob([JSON.stringify(arr,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="jrt_history.json";
+  a.click();
+});
+
+sample.addEventListener("click",()=>{
+  numInput.value="Here is a stream 119, 228, 1133, 98, 11, 505.";
+});
+</script>
+</body>
+</html>
