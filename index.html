@@ -94,6 +94,76 @@
   </div>
 
 <script>
+  // =======================
+// Johnson Input Fix
+// =======================
+
+function parseJohnsonInput(raw) {
+  const text = raw?.toString().trim();
+
+  // Empty or null input
+  if (text === "" || text === null || text === undefined) {
+    return { value: 0, atypical: true };
+  }
+
+  const n = Number(text);
+
+  // Not a valid number → atypical
+  if (isNaN(n)) {
+    return { value: 0, atypical: true };
+  }
+
+  // Manual 0 → allow collapse
+  if (n === 0) {
+    return { value: 0, collapseZero: true };
+  }
+
+  // Normal number
+  return { value: n, collapseZero: false, atypical: false };
+}
+
+function johnsonReduce(inputObj) {
+  const { value, collapseZero, atypical } = inputObj;
+
+  // OCR-null or invalid → atypical
+  if (atypical) {
+    return {
+      original: 0,
+      chain: [],
+      final: 0,
+      signature: "0 — Atypical signature"
+    };
+  }
+
+  // Manual 0 → collapse to 1
+  if (collapseZero) {
+    return {
+      original: 0,
+      chain: [1],
+      final: 1,
+      signature: "1 — Johnson baseline collapse"
+    };
+  }
+
+  // Normal reduction
+  let n = value;
+  const chain = [];
+
+  while (n !== 1) {
+    chain.push(n);
+    n = reduceOnce(n); // (keep your original reducer here)
+    if (n === 0) break;
+  }
+
+  if (n === 1) chain.push(1);
+
+  return {
+    original: value,
+    chain,
+    final: chain[chain.length - 1],
+    signature: `${chain.at(-1)} — Normal signature`
+  };
+}
 /* ===============================
    CAMERA
    =============================== */
